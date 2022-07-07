@@ -69,6 +69,7 @@ name = "imferris"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cc",
  "detour",
  "imgui",
  "windows",
