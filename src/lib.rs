@@ -1,6 +1,5 @@
 mod utils;
 
-use anyhow::Ok;
 use detour::static_detour;
 use std::ffi::c_void;
 use std::thread;
@@ -22,7 +21,7 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
             LibraryLoader::DisableThreadLibraryCalls(dll);
         }
 
-        thread::spawn(move || {
+        thread::spawn(move || -> anyhow::Result<()> {
             let present_origin = d3d11::present()?;
 
             unsafe {
