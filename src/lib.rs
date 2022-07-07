@@ -1,15 +1,20 @@
 #![feature(stmt_expr_attributes)]
+#![feature(local_key_cell_methods)]
+
 mod utils;
 
-use context::Context;
+use anyhow::anyhow;
 use detour::static_detour;
 use imgui::ConfigFlags;
+use once_cell::sync::OnceCell;
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::sync::Once;
 use std::{mem, thread};
 use utils::d3d11;
 use windows::core::HRESULT;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Direct3D11::{ID3D11DeviceContext, ID3D11RenderTargetView};
 use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
 use windows::Win32::System::LibraryLoader;
 use windows::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
@@ -17,7 +22,13 @@ use windows::Win32::UI::WindowsAndMessaging;
 use windows::Win32::UI::WindowsAndMessaging::{GWLP_WNDPROC, WNDPROC};
 
 static INIT: Once = Once::new();
-static mut CTX: Option<Context> = None;
+static WND_PROC: OnceCell<WNDPROC> = OnceCell::new();
+static DEVICE: OnceCell<&ID3D11DeviceContext> = OnceCell::new();
+static TARGET_VIEW: OnceCell<&ID3D11RenderTargetView> = OnceCell::new();
+
+thread_local! {
+    static IMGUI: RefCell<Option<imgui::Context>> = RefCell::new(None);
+}
 
 static_detour! {
     static PRESENT_DETOUR: extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
@@ -47,63 +58,101 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
 }
 
 fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    unsafe {
-        match CTX.as_ref() {
-            None => WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam),
-            Some(ctx) => {
-                if utils::imgui::wnd_proc(hwnd, msg, wparam, lparam).0 != 0 {
-                    return LRESULT(true.into());
-                }
+    if unsafe { utils::imgui::wnd_proc(hwnd, msg, wparam, lparam).0 } != 0 {
+        return LRESULT(true.into());
+    }
 
-                WindowsAndMessaging::CallWindowProcW(ctx.wnd_proc, hwnd, msg, wparam, lparam)
-            }
-        }
+    match WND_PROC.get() {
+        None => unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) },
+        Some(wnd_proc) => unsafe {
+            WindowsAndMessaging::CallWindowProcW(*wnd_proc, hwnd, msg, wparam, lparam)
+        },
     }
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
-    INIT.call_once(|| unsafe {
-        let device = &*d3d11::device(swap_chain);
-        let window = d3d11::desc(swap_chain).OutputWindow;
-        let device_ctx = &*d3d11::immediate_context(device);
+    INIT.call_once(|| {
+        let init = || -> anyhow::Result<()> {
+            let swap_chain = unsafe { swap_chain.as_ref() }
+                .ok_or_else(|| anyhow!("Failed to get reference to swap chain"))?;
 
-        let buf = &*d3d11::buf(swap_chain);
-        let target_view = &*d3d11::create_render_target(device, buf);
+            let (device, target_view) = unsafe {
+                let device = d3d11::device(swap_chain)
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Failed to get d3d11 device"))?;
 
-        let wnd_proc = WindowsAndMessaging::SetWindowLongPtrW(
-            window,
-            GWLP_WNDPROC,
-            wnd_proc as usize as isize,
-        );
-        let wnd_proc: WNDPROC = mem::transmute(wnd_proc);
+                let buf = d3d11::buf(swap_chain)
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Failed to get d3d11 buffer"))?;
 
-        let mut imgui = imgui::Context::create();
-        let io = imgui.io_mut();
-        io.config_flags = ConfigFlags::NO_MOUSE_CURSOR_CHANGE;
+                let target_view = d3d11::create_render_target(device, buf)
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Failed to create d3d11 target view"))?;
 
-        utils::imgui::init(window, device, device_ctx);
+                (device, target_view)
+            };
 
-        let ctx = Context::new(imgui, device_ctx, target_view, wnd_proc);
-        CTX = Some(ctx);
+            let window = unsafe { d3d11::desc(swap_chain) }.OutputWindow;
+
+            let wnd_proc: WNDPROC = unsafe {
+                let wnd_proc = WindowsAndMessaging::SetWindowLongPtrW(
+                    window,
+                    GWLP_WNDPROC,
+                    wnd_proc as usize as isize,
+                );
+
+                mem::transmute(wnd_proc)
+            };
+
+            let mut imgui = imgui::Context::create();
+            let io = imgui.io_mut();
+            io.config_flags = ConfigFlags::NO_MOUSE_CURSOR_CHANGE;
+
+            let device = unsafe {
+                let device_ctx = d3d11::immediate_context(device)
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Failed to get d3d11 context"))?;
+
+                utils::imgui::init(window, device, device_ctx);
+
+                device_ctx
+            };
+
+            WND_PROC.get_or_init(|| wnd_proc);
+            DEVICE.get_or_init(|| device);
+            TARGET_VIEW.get_or_init(|| target_view);
+
+            IMGUI.with(|f| {
+                *f.borrow_mut() = Some(imgui);
+            });
+
+            Ok(())
+        };
+
+        let _ = init();
     });
 
-    unsafe {
-        match CTX.as_mut() {
-            None => {
-                let _ = PRESENT_DETOUR.disable();
-            }
-            Some(ctx) => {
+    IMGUI.with_borrow_mut(|f| {
+        #[rustfmt::skip]
+        if let (
+            Some(imgui),
+            Some(device),
+            Some(target_view)
+        ) = (f, DEVICE.get(), TARGET_VIEW.get()) {
+            unsafe {
                 utils::imgui::frame();
+            }
 
-                let ui = ctx.imgui.frame();
-                ui.show_demo_window(&mut true);
-                let draw_data = ui.render();
+            let ui = imgui.frame();
+            ui.show_demo_window(&mut true);
+            let draw_data = ui.render();
 
-                d3d11::render_target(ctx.device_ctx, ctx.target_view);
+            unsafe {
+                d3d11::render_target(*device, *target_view);
                 utils::imgui::render(draw_data);
             }
         }
-    }
+    });
 
     PRESENT_DETOUR.call(swap_chain, sync_internal, flags)
 }
