@@ -47,7 +47,24 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
 }
 
 fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) }
+    unsafe {
+        match CTX.as_ref() {
+            None => WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam),
+            Some(ctx) => {
+                if utils::imgui::wnd_proc(hwnd, msg, wparam, lparam).0 != 0 {
+                    return LRESULT(true.into());
+                }
+
+                return WindowsAndMessaging::CallWindowProcW(
+                    ctx.wnd_proc,
+                    hwnd,
+                    msg,
+                    wparam,
+                    lparam,
+                );
+            }
+        }
+    }
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
