@@ -1,4 +1,4 @@
-mod context;
+#![feature(stmt_expr_attributes)]
 mod utils;
 
 use context::Context;
