@@ -3,14 +3,14 @@ mod utils;
 
 use detour::static_detour;
 use std::ffi::c_void;
-use std::sync::Once;
 use std::thread;
 use utils::d3d11;
 use windows::core::HRESULT;
-use windows::Win32::Foundation::{BOOL, HINSTANCE};
+use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
 use windows::Win32::System::LibraryLoader;
 use windows::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
+use windows::Win32::UI::WindowsAndMessaging;
 
 static_detour! {
     static PRESENT_DETOUR: extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
@@ -37,6 +37,10 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
     }
 
     true.into()
+}
+
+fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
