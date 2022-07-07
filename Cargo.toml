@@ -3,6 +3,9 @@ name = "imgui-internal"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 detour = "0.8.1"
 anyhow = "1.0.58"
