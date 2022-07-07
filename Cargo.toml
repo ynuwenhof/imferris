@@ -1,5 +1,5 @@
 [package]
-name = "imgui-internal"
+name = "imferris"
 version = "0.1.0"
 edition = "2021"
 
