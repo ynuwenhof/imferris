@@ -55,13 +55,7 @@ fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
                     return LRESULT(true.into());
                 }
 
-                return WindowsAndMessaging::CallWindowProcW(
-                    ctx.wnd_proc,
-                    hwnd,
-                    msg,
-                    wparam,
-                    lparam,
-                );
+                WindowsAndMessaging::CallWindowProcW(ctx.wnd_proc, hwnd, msg, wparam, lparam)
             }
         }
     }
