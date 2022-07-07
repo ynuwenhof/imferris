@@ -1,9 +1,12 @@
 mod context;
 mod utils;
 
+use context::Context;
 use detour::static_detour;
+use imgui::ConfigFlags;
 use std::ffi::c_void;
-use std::thread;
+use std::sync::Once;
+use std::{mem, thread};
 use utils::d3d11;
 use windows::core::HRESULT;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
@@ -11,6 +14,10 @@ use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
 use windows::Win32::System::LibraryLoader;
 use windows::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 use windows::Win32::UI::WindowsAndMessaging;
+use windows::Win32::UI::WindowsAndMessaging::{GWLP_WNDPROC, WNDPROC};
+
+static INIT: Once = Once::new();
+static mut CTX: Option<Context> = None;
 
 static_detour! {
     static PRESENT_DETOUR: extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
@@ -44,5 +51,30 @@ fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
+    INIT.call_once(|| unsafe {
+        let device = &*d3d11::device(swap_chain);
+        let window = d3d11::desc(swap_chain).OutputWindow;
+        let device_ctx = &*d3d11::immediate_context(device);
+
+        let buf = &*d3d11::buf(swap_chain);
+        let target_view = &*d3d11::create_render_target(device, buf);
+
+        let wnd_proc = WindowsAndMessaging::SetWindowLongPtrW(
+            window,
+            GWLP_WNDPROC,
+            wnd_proc as usize as isize,
+        );
+        let wnd_proc: WNDPROC = mem::transmute(wnd_proc);
+
+        let mut imgui = imgui::Context::create();
+        let io = imgui.io_mut();
+        io.config_flags = ConfigFlags::NO_MOUSE_CURSOR_CHANGE;
+
+        utils::imgui::init(window, device, device_ctx);
+
+        let ctx = Context::new(imgui, device_ctx, target_view, wnd_proc);
+        CTX = Some(ctx);
+    });
+
     PRESENT_DETOUR.call(swap_chain, sync_internal, flags)
 }
