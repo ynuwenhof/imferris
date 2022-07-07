@@ -13,6 +13,7 @@ cc = "1.0.73"
 imgui = "0.8.2"
 detour = "0.8.1"
 anyhow = "1.0.58"
+once_cell = "1.13.0"
 
 [dependencies.windows]
 version = "0.38.0"
