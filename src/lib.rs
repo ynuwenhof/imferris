@@ -76,5 +76,23 @@ fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) ->
         CTX = Some(ctx);
     });
 
+    unsafe {
+        match CTX.as_mut() {
+            None => {
+                let _ = PRESENT_DETOUR.disable();
+            }
+            Some(ctx) => {
+                utils::imgui::frame();
+
+                let ui = ctx.imgui.frame();
+                ui.show_demo_window(&mut true);
+                let draw_data = ui.render();
+
+                d3d11::render_target(ctx.device_ctx, ctx.target_view);
+                utils::imgui::render(draw_data);
+            }
+        }
+    }
+
     PRESENT_DETOUR.call(swap_chain, sync_internal, flags)
 }
