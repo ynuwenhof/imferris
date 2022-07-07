@@ -1,7 +1,9 @@
+mod context;
 mod utils;
 
 use detour::static_detour;
 use std::ffi::c_void;
+use std::sync::Once;
 use std::thread;
 use utils::d3d11;
 use windows::core::HRESULT;
