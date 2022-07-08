@@ -11,3 +11,4 @@ Imferris utilizes the [imgui_impl_win32.cpp](https://github.com/ocornut/imgui/bl
 3. Build the DLL by running `cargo build` or `cargo b`
 4. Inject the DLL using the DLL injector of your choice
 
+![showcase](https://user-images.githubusercontent.com/100025337/177890937-fe4e0001-6f0f-4cc1-8af5-5e1e0bdb524f.png)
