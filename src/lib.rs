@@ -5,8 +5,9 @@ mod utils;
 
 use anyhow::anyhow;
 use detour::static_detour;
-use imgui::ConfigFlags;
-use once_cell::sync::OnceCell;
+use imgui::{ConfigFlags, Key};
+use once_cell::sync::{Lazy, OnceCell};
+use parking_lot::Mutex;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::sync::Once;
@@ -25,6 +26,7 @@ static INIT: Once = Once::new();
 static WND_PROC: OnceCell<WNDPROC> = OnceCell::new();
 static DEVICE: OnceCell<&ID3D11DeviceContext> = OnceCell::new();
 static TARGET_VIEW: OnceCell<&ID3D11RenderTargetView> = OnceCell::new();
+static ENABLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(true));
 
 thread_local! {
     static IMGUI: RefCell<Option<imgui::Context>> = RefCell::new(None);
@@ -62,12 +64,21 @@ fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         return LRESULT(true.into());
     }
 
-    match WND_PROC.get() {
-        None => unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) },
-        Some(wnd_proc) => unsafe {
-            WindowsAndMessaging::CallWindowProcW(*wnd_proc, hwnd, msg, wparam, lparam)
-        },
+    {
+        let enabled = ENABLED.lock();
+
+        if !*enabled {
+            if let Some(wnd_proc) = WND_PROC.get() {
+                drop(enabled);
+
+                return unsafe {
+                    WindowsAndMessaging::CallWindowProcW(*wnd_proc, hwnd, msg, wparam, lparam)
+                };
+            }
+        }
     }
+
+    unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
@@ -144,7 +155,19 @@ fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) ->
             }
 
             let ui = imgui.frame();
-            ui.show_demo_window(&mut true);
+
+            {
+                let mut enabled = ENABLED.lock();
+
+                if ui.is_key_pressed(Key::Insert) {
+                    *enabled = !*enabled;
+                }
+
+                if *enabled {
+                    ui.show_demo_window(&mut enabled);
+                }
+            }
+
             let draw_data = ui.render();
 
             unsafe {
