@@ -10,7 +10,7 @@ Imferris utilizes the [imgui_impl_win32.cpp](https://github.com/ocornut/imgui/bl
 2. Clone the repo and cd into the directory
 
     ```
-    git clone https://github.com/ynuwenhof/imferris
+    git clone --recurse-submodules https://github.com/ynuwenhof/imferris
     cd imferris
     ```
 3. Build the DLL by running `cargo b --release`
