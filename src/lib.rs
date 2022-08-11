@@ -28,11 +28,17 @@ static DEVICE: OnceCell<&ID3D11DeviceContext> = OnceCell::new();
 static TARGET_VIEW: OnceCell<&ID3D11RenderTargetView> = OnceCell::new();
 static ENABLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(true));
 
+#[link(name = "windows")]
+extern "system" {
+    fn SetCursorPos(x: i32, y: i32) -> BOOL;
+}
+
 thread_local! {
     static IMGUI: RefCell<Option<imgui::Context>> = RefCell::new(None);
 }
 
 static_detour! {
+    static SET_CURSOR_POS_DETOUR: unsafe extern "system" fn(i32, i32) -> BOOL;
     static PRESENT_DETOUR: unsafe extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
 }
 
@@ -47,6 +53,10 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
             let present_origin = d3d11::present()?;
 
             unsafe {
+                SET_CURSOR_POS_DETOUR
+                    .initialize(SetCursorPos, set_cursor_pos)?
+                    .enable()?;
+
                 PRESENT_DETOUR
                     .initialize(present_origin, present)?
                     .enable()?;
@@ -79,6 +89,18 @@ fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     }
 
     unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
+
+fn set_cursor_pos(x: i32, y: i32) -> BOOL {
+    {
+        let enabled = ENABLED.lock();
+        if *enabled {
+            drop(enabled);
+            return false.into();
+        }
+    }
+
+    unsafe { SET_CURSOR_POS_DETOUR.call(x, y) }
 }
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
