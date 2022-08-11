@@ -20,7 +20,7 @@ use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
 use windows::Win32::System::LibraryLoader;
 use windows::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 use windows::Win32::UI::WindowsAndMessaging;
-use windows::Win32::UI::WindowsAndMessaging::{GWLP_WNDPROC, WNDPROC};
+use windows::Win32::UI::WindowsAndMessaging::{GWLP_WNDPROC, HCURSOR, IDC_ARROW, WNDPROC};
 
 static INIT: Once = Once::new();
 static WND_PROC: OnceCell<WNDPROC> = OnceCell::new();
@@ -30,6 +30,7 @@ static ENABLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(true));
 
 #[link(name = "windows")]
 extern "system" {
+    fn SetCursor(cursor: HCURSOR) -> HCURSOR;
     fn SetCursorPos(x: i32, y: i32) -> BOOL;
 }
 
@@ -38,6 +39,7 @@ thread_local! {
 }
 
 static_detour! {
+    static SET_CURSOR_DETOUR: unsafe extern "system" fn(HCURSOR) -> HCURSOR;
     static SET_CURSOR_POS_DETOUR: unsafe extern "system" fn(i32, i32) -> BOOL;
     static PRESENT_DETOUR: unsafe extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
 }
@@ -53,6 +55,10 @@ pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c
             let present_origin = d3d11::present()?;
 
             unsafe {
+                SET_CURSOR_DETOUR
+                    .initialize(SetCursor, set_cursor)?
+                    .enable()?;
+
                 SET_CURSOR_POS_DETOUR
                     .initialize(SetCursorPos, set_cursor_pos)?
                     .enable()?;
@@ -77,18 +83,33 @@ fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     {
         let enabled = ENABLED.lock();
 
-        if !*enabled {
-            if let Some(wnd_proc) = WND_PROC.get() {
-                drop(enabled);
-
-                return unsafe {
-                    WindowsAndMessaging::CallWindowProcW(*wnd_proc, hwnd, msg, wparam, lparam)
-                };
+        if *enabled {
+            unsafe {
+                if let Ok(cursor) = WindowsAndMessaging::LoadCursorW(None, IDC_ARROW) {
+                    SET_CURSOR_DETOUR.call(cursor);
+                }
             }
+        } else if let Some(wnd_proc) = WND_PROC.get() {
+            drop(enabled);
+
+            return unsafe {
+                WindowsAndMessaging::CallWindowProcW(*wnd_proc, hwnd, msg, wparam, lparam)
+            };
         }
     }
 
     unsafe { WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
+
+fn set_cursor(cursor: HCURSOR) -> HCURSOR {
+    {
+        let enabled = ENABLED.lock();
+        if *enabled {
+            return HCURSOR(0);
+        }
+    }
+
+    unsafe { SET_CURSOR_DETOUR.call(cursor) }
 }
 
 fn set_cursor_pos(x: i32, y: i32) -> BOOL {
