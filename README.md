@@ -8,6 +8,7 @@ Imferris utilizes the [imgui_impl_win32.cpp](https://github.com/ocornut/imgui/bl
 
 1. Install Rust from [here](https://www.rust-lang.org/)
 2. Clone the repo and cd into the directory
+
     ```
     git clone https://github.com/ynuwenhof/imferris
     cd imferris
