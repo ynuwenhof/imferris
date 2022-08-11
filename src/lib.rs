@@ -33,7 +33,7 @@ thread_local! {
 }
 
 static_detour! {
-    static PRESENT_DETOUR: extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
+    static PRESENT_DETOUR: unsafe extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
 }
 
 #[no_mangle]
@@ -177,5 +177,5 @@ fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) ->
         }
     });
 
-    PRESENT_DETOUR.call(swap_chain, sync_internal, flags)
+    unsafe { PRESENT_DETOUR.call(swap_chain, sync_internal, flags) }
 }
