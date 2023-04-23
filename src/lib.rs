@@ -211,7 +211,7 @@ fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) ->
                 }
             }
 
-            let draw_data = ui.render();
+            let draw_data = imgui.render();
 
             unsafe {
                 d3d11::render_target(*device, *target_view);
