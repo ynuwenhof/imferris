@@ -6,9 +6,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
-[build-dependencies]
-cc = "1.0.73"
-
 [dependencies]
 imgui = "0.8.2"
 detour = "0.8.1"
@@ -28,3 +25,6 @@ features = [
     "Win32_System_LibraryLoader",
     "Win32_System_SystemServices",
 ]
+
+[build-dependencies]
+cc = "1.0.79"
