@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::{mem, ptr};
+use std::mem;
 use windows::core::HRESULT;
 use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_HARDWARE;
 use windows::Win32::Graphics::Direct3D11;
@@ -58,13 +58,13 @@ pub fn present() -> anyhow::Result<Present> {
             D3D_DRIVER_TYPE_HARDWARE,
             None,
             D3D11_CREATE_DEVICE_FLAG::default(),
-            &[],
+            None,
             D3D11_SDK_VERSION,
-            &swap_chain_desc,
-            &mut swap_chain,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&swap_chain_desc),
+            Some(&mut swap_chain),
+            None,
+            None,
+            None,
         )?;
     }
 

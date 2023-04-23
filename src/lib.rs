@@ -14,7 +14,7 @@ use std::sync::Once;
 use std::{mem, thread};
 use utils::d3d11;
 use windows::core::HRESULT;
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{BOOL, HMODULE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Direct3D11::{ID3D11DeviceContext, ID3D11RenderTargetView};
 use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
 use windows::Win32::System::LibraryLoader;
@@ -45,7 +45,7 @@ static_detour! {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn DllMain(dll: HINSTANCE, reason: u32, _reserved: *const c_void) -> BOOL {
+pub extern "stdcall" fn DllMain(dll: HMODULE, reason: u32, _reserved: *const c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {
         unsafe {
             LibraryLoader::DisableThreadLibraryCalls(dll);
