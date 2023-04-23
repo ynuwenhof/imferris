@@ -4,10 +4,10 @@
 mod utils;
 
 use anyhow::anyhow;
-use detour::static_detour;
 use imgui::{ConfigFlags, Key};
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::Mutex;
+use retour::static_detour;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::sync::Once;
