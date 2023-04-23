@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::eyre;
 use std::mem;
 use windows::core::HRESULT;
 use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_HARDWARE;
@@ -32,7 +32,7 @@ extern "C" {
 
 pub type Present = extern "stdcall" fn(*const IDXGISwapChain, u32, u32) -> HRESULT;
 
-pub fn present() -> anyhow::Result<Present> {
+pub fn present() -> eyre::Result<Present> {
     let swap_chain_desc = DXGI_SWAP_CHAIN_DESC {
         BufferDesc: DXGI_MODE_DESC {
             Format: DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -68,7 +68,7 @@ pub fn present() -> anyhow::Result<Present> {
         )?;
     }
 
-    let swap_chain = swap_chain.ok_or_else(|| anyhow!("Failed to create swap chain"))?;
+    let swap_chain = swap_chain.ok_or_else(|| eyre!("Failed to create swap chain"))?;
 
     let present: Present = unsafe {
         let vmt = **((&swap_chain as *const _) as *const *const *const *const ());

@@ -3,7 +3,7 @@
 
 mod utils;
 
-use anyhow::anyhow;
+use eyre::eyre;
 use imgui::{ConfigFlags, Key};
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::Mutex;
@@ -51,7 +51,7 @@ pub extern "stdcall" fn DllMain(dll: HMODULE, reason: u32, _reserved: *const c_v
             LibraryLoader::DisableThreadLibraryCalls(dll);
         }
 
-        thread::spawn(move || -> anyhow::Result<()> {
+        thread::spawn(move || -> eyre::Result<()> {
             let present_origin = d3d11::present()?;
 
             unsafe {
@@ -126,22 +126,22 @@ fn set_cursor_pos(x: i32, y: i32) -> BOOL {
 
 fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) -> HRESULT {
     INIT.call_once(|| {
-        let init = || -> anyhow::Result<()> {
+        let init = || -> eyre::Result<()> {
             let swap_chain = unsafe { swap_chain.as_ref() }
-                .ok_or_else(|| anyhow!("Failed to get reference to swap chain"))?;
+                .ok_or_else(|| eyre!("Failed to get reference to swap chain"))?;
 
             let (device, target_view) = unsafe {
                 let device = d3d11::device(swap_chain)
                     .as_ref()
-                    .ok_or_else(|| anyhow!("Failed to get d3d11 device"))?;
+                    .ok_or_else(|| eyre!("Failed to get d3d11 device"))?;
 
                 let buf = d3d11::buf(swap_chain)
                     .as_ref()
-                    .ok_or_else(|| anyhow!("Failed to get d3d11 buffer"))?;
+                    .ok_or_else(|| eyre!("Failed to get d3d11 buffer"))?;
 
                 let target_view = d3d11::create_render_target(device, buf)
                     .as_ref()
-                    .ok_or_else(|| anyhow!("Failed to create d3d11 target view"))?;
+                    .ok_or_else(|| eyre!("Failed to create d3d11 target view"))?;
 
                 (device, target_view)
             };
@@ -165,7 +165,7 @@ fn present(swap_chain: *const IDXGISwapChain, sync_internal: u32, flags: u32) ->
             let device = unsafe {
                 let device_ctx = d3d11::immediate_context(device)
                     .as_ref()
-                    .ok_or_else(|| anyhow!("Failed to get d3d11 context"))?;
+                    .ok_or_else(|| eyre!("Failed to get d3d11 context"))?;
 
                 utils::imgui::init(window, device, device_ctx);
 
