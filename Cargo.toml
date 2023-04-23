@@ -13,7 +13,7 @@ cc = "1.0.73"
 imgui = "0.8.2"
 detour = "0.8.1"
 anyhow = "1.0.58"
-once_cell = "1.13.0"
+once_cell = "1.17.1"
 parking_lot = "0.12.1"
 
 [dependencies.windows]
