@@ -28,7 +28,7 @@ static DEVICE: OnceCell<&ID3D11DeviceContext> = OnceCell::new();
 static TARGET_VIEW: OnceCell<&ID3D11RenderTargetView> = OnceCell::new();
 static ENABLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(true));
 
-#[link(name = "windows")]
+#[link(name = "User32")]
 extern "system" {
     fn SetCursor(cursor: HCURSOR) -> HCURSOR;
     fn SetCursorPos(x: i32, y: i32) -> BOOL;
